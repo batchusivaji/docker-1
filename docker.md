@@ -75,11 +75,11 @@
 ------------------------------------------------------------------------------
 
 ### 5. Create a jenkins image by craeting a own docker file
-`FROM ubuntu:latest
-RUN  apt update && apt install openjdk-8-jdk -y && apt install maven -y && apt install git -y 
-RUN  git clone https://github.com/hemachaitanya/game-of-life.git && cd game-of-life && mvn package
-EXPOSE 9090
-CMD [ "java","-jar"," target/game-of-life-1.0-SNAPSHOT.jar" ]`
+FROM `ubuntu:latest`
+RUN  `apt update && apt install openjdk-8-jdk -y && apt install maven -y && apt install git` -y 
+RUN  `git clone https://github.com/batchusivaji/game-of-life.git && cd game-of-life && mvn package`
+EXPOSE `9090`
+CMD `[ "java","-jar"," target/game-of-life-1.0-SNAPSHOT.jar" ]`
 
 1.`docker image build -t jenkins:v1.0 .`
 2.`docker container run -d -P --name jenkins jenkins:v1.0`
@@ -111,7 +111,120 @@ CMD [ "java","-jar"," target/game-of-life-1.0-SNAPSHOT.jar" ]`
 
                 workbook3
                 --------
-----
-### multi-stage docker file to build 
-##
+-------------------------------------------------------------------------
+### multi-stage docker file 
+------------------------------
+1.to build nopcommerse
+stage1: 
+FROM:`ubuntu:22.04 as nopCommerce`
+    `RUN apt update && apt install unzip` -y
+ARG:`DOWNLOAD_URL=https://github.com/nopSolutions/nopCommerce/releases/downloa 
+     d/release-4.60.2/nopCommerce_4.60.2_NoSource_linux_x64.zip`
+ADD: `${DOWNLOAD_URL} /nopCommerce/nopCommerce_4.60.2_NoSource_linux_x64.zip`
+RUN: `cd /nopCommerce && unzip nopCommerce_4.60.2_NoSource_linux_x64.zip &&
+     mkdir bin logs && rm nopCommerce_4.60.2_NoSource_linux_x64.zip`
 
+stage2:
+  FROM: `mcr.microsoft.com/dotnet/sdk:7.0`
+  LABEL: `author="test" organization="khaja.tech" project="nopcommerse"`
+  ARG: `DIRECTORY=/nop`
+  WORKDIR: `${DIRECTORY}`
+  COPY: `--from=nopCommerce  /nopCommerce ${DIRECTORY}`
+  EXPOSE: `5000`
+  ENV: `ASNETCORE_URLS="http://0.0.0.0:5000"`
+  CMD: ["dotnet","Nop.Web.dll","--urls","http://0.0.0.0:5000"] 
+
+ 1. `docker image build -t nop:1.0 .`
+ 2. `docker container run -d -P nop:1.0`
+ ![preview](images/docker25.png)
+ ![preview](images/docker26.png)
+ ![preview](images/docker27.png)
+  --------------------------------------------
+1. ### to build multi stage spring petclinic
+  stage1:
+  FROM: `amazoncorretto:17-alpine-jdk as spc`
+ LABEL: `author="test" project="springpetclinic" organization="khaja.tech"`
+   RUN: `wget https://referenceapplicationskhaja.s3.us-west 
+        2.amazonaws.com/spring-petclinic-2.4.2.jar`
+  stage2:
+  FROM:` amazoncorretto:11-alpine3.14`
+LABEL: `author="test" project="springpetclinic" organization="khaja.tech"`
+  ARG: `user=test`
+  ARG: `group=spcgroup`
+  ARG: `uid=12341`
+  ARG: `gid=15241`
+  ARG: `HOME_DIR=/spring-petclinic-2.4.2.jar`
+  RUN: `adduser -h "$HOME_DIR" -u ${uid} -g ${gid} -D -s /bin/bash ${user} \
+      && addgroup -g ${gid} ${group}`
+ COPY: `--from=spc /spring-petclinic-2.4.2.jar /spring-petclinic-2.4.2.jar`
+ EXPOSE: `8080`
+  CMD: `["java","-jar","/spring-petclinic-2.4.2.jar"]`
+     ![preview](images/docker28.png)
+     ![preview](images/docker29.png)
+
+### student course register
+stage1:
+FROM `alpine:3.17 as source`
+LABEL `author="test" project="StudentCoursesRestAPI"`
+RUN `apk add --update && apk add git`
+RUN `git clone https://github.com/shivaji/StudentCoursesRestAPI.git /StudentCoursesRestAPI`
+stage2:
+FROM `python:3.7-alpine`
+LABEL `author="test" project="StudentCoursesRestAPI"`
+COPY `--from=source /StudentCoursesRestAPI /StudentCoursesRestAPI  `
+WORKDIR `/StudentCoursesRestAPI` 
+EXPOSE `8080`
+ENTRYPOINT `["python","app.py"]`
+ ![preview](images/docker31.png)
+ ![preview](images/docker32.png)
+ ![preview](images/docker33.png)
+
+ ##### AWS ECR
+1. `docker image build -t spc .`
+2.`docker tag spc:latest 336607023349.dkr.ecr.us-east- 
+    2.amazonaws.com/spc:latest`
+3. `docker push 336607023349.dkr.ecr.us-east-1.amazonaws.com/spc:latest`
+
+### yama compose file
+ Write any Docker compose file
+
+nop commerce
+---
+```yaml
+version: '3.9'
+services:
+  nop-db:
+    image: mysql:5.7
+    restart: always
+    container_name: my-sql
+    environment:
+      MYSQL_DATABASE: 'db'
+      MYSQL_PASSWORD: 'password'
+      MYSQL_ROOT_PASSWORD: 'test'
+      
+      MYSQL_USER: 'nop'
+    expose:
+      - '3306'
+    ports: 
+      - 35000:3306
+    networks:
+      - nop-net
+    volumes:
+      - my-db:/var/lib/mysql
+  nop:
+    container_name: nopapp
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 30001:5000
+    environment:
+      MYSQL_SERVER: my-sql
+    networks:
+      - nop-net
+volumes:
+  my-db:
+networks:
+  nop-net: 
+
+ 
